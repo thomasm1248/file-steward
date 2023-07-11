@@ -24,15 +24,15 @@ void checkForExpiredFiles(fs::path path, int maxAge)
     // Iterate through files/directories within the folder at path
     std::ranges::for_each( fs::directory_iterator{path},
             [](const auto& subPath) {
-                // Check modification date
+                // Get seconds since last edit
                 std::chrono::duration<double> secondsSinceLastEdit = fs::file_time_type::clock::now() - fs::last_write_time(subPath);
+                // Delete if last modified a while ago
                 if (secondsSinceLastEdit.count() > SECONDS_UNTIL_FILE_EXPIRATION)
                 {
                     std::cout << subPath << " : Expired\n";
                     fs::remove_all(subPath);
                 }
             } );
-    // todo implement
 }
 
 int main(int argc, char** argv)
