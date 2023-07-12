@@ -84,21 +84,21 @@ void zipModifiedSubfolders(fs::path archiveRoot)
     }
 
     // Scan archive and make package list
+    // todo consider ignoring inventory file
     std::vector<inventoryEntry> newInventoryState;
-    std::ranges::for_each( fs::directory_iterator{archiveRoot},
-            [&newInventoryState](const auto& subPath) {
-                // Get last modified date
-                fs::file_time_type modTime = fs::last_write_time(subPath);
-                // Convert date to string (uuuuuugh)
-                auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(modTime - std::chrono::file_clock::now() + std::chrono::system_clock::now());
-                std::time_t tt = std::chrono::system_clock::to_time_t(sctp);
-                std::string dateString = std::to_string(tt);
-                // Create new inventory entry, and add to list
-                inventoryEntry newEntry;
-                newEntry.path = subPath.path().string();
-                newInventoryState.push_back(newEntry);
-            } );
-    std::cout << newInventoryState.size() << '\n';
+    for(auto& subPath : fs::directory_iterator{archiveRoot})
+    {
+        // Get last modified date
+        fs::file_time_type modTime = fs::last_write_time(subPath);
+        // Convert date to string (uuuuuugh)
+        auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(modTime - std::chrono::file_clock::now() + std::chrono::system_clock::now());
+        std::time_t tt = std::chrono::system_clock::to_time_t(sctp);
+        std::string dateString = std::to_string(tt);
+        // Create new inventory entry, and add to list
+        inventoryEntry newEntry;
+        newEntry.path = subPath.path().string();
+        newInventoryState.push_back(newEntry);
+    }
 
     // Merge inventory data with package list
 
