@@ -25,6 +25,7 @@ struct inventoryEntry
 {
     std::string path;
     std::string date;
+    bool modified;
 };
 
 void checkForExpiredFiles(fs::path path, int maxAge)
@@ -47,13 +48,17 @@ void zipModifiedSubfolders(fs::path archiveRoot)
 {
     // read inventory file
     std::vector<inventoryEntry> oldInventoryState;
-    std::ifstream inventoryFile{archiveRoot.string() + "/.steward"};
+    std::string inventoryFilePathString = archiveRoot.string() + "/.steward";
+    std::ifstream inventoryFile{inventoryFilePathString};
     if (inventoryFile.is_open())
     {
         // Read each line of the file
         std::string line;
         while (std::getline(inventoryFile, line))
         {
+            // Ignore blank lines
+            if (line == "") continue;
+
             // Parse the line
             std::string date;
             std::string path;
@@ -79,32 +84,87 @@ void zipModifiedSubfolders(fs::path archiveRoot)
             newEntry.path = path;
             newEntry.date = date;
             oldInventoryState.push_back(newEntry);
-            std::cout << oldInventoryState.size() << '\n';
         }
+        inventoryFile.close();
     }
+    fs::remove(fs::path{inventoryFilePathString});
 
     // Scan archive and make package list
     // todo consider ignoring inventory file
     std::vector<inventoryEntry> newInventoryState;
-    for(auto& subPath : fs::directory_iterator{archiveRoot})
+    for (auto& subPath : fs::directory_iterator{archiveRoot})
     {
+        using namespace std::chrono;
         // Get last modified date
-        fs::file_time_type modTime = fs::last_write_time(subPath);
+        auto modTime = fs::last_write_time(subPath);
         // Convert date to string (uuuuuugh)
-        auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(modTime - std::chrono::file_clock::now() + std::chrono::system_clock::now());
-        std::time_t tt = std::chrono::system_clock::to_time_t(sctp);
+        auto sctp = time_point_cast<system_clock::duration>(modTime - file_clock::now() + system_clock::now());
+        std::time_t tt = system_clock::to_time_t(sctp);
         std::string dateString = std::to_string(tt);
         // Create new inventory entry, and add to list
         inventoryEntry newEntry;
         newEntry.path = subPath.path().string();
+        newEntry.date = dateString;
         newInventoryState.push_back(newEntry);
     }
 
     // Merge inventory data with package list
+    for (auto &entry : newInventoryState)
+    {
+        // Find corresponding entry from inventory file
+        bool entryFound = false;
+        inventoryEntry previousEntry;
+        for (auto oldEntry : oldInventoryState)
+        {
+            if (oldEntry.path == entry.path)
+            {
+                previousEntry = oldEntry;
+                entryFound = true;
+                break;
+            }
+        }
+
+        // Decide whether or not current package has been modified
+        if (entryFound)
+        {
+            // The current package is not new, so it only needs to be zipped
+            // if the modification date has been changed
+            if (previousEntry.date != entry.date)
+                entry.modified = true;
+            else
+                entry.modified = false;
+        }
+        else
+        {
+            // The current package is new, so it needs to be zipped
+            entry.modified = true;
+        }
+        //std::cout << (entry.modified ? "modified " : "unchanged") << " : " << entry.path << '\n';
+    }
 
     // Zip packages with recent modifications
+    for (auto &entry : newInventoryState)
+    {
+        if (entry.modified)
+        {
+            std::cout << "Zipping " << entry.path << "\n";
+            std::string strComm = "zip -r \"" + entry.path + ".zip\" \"" + entry.path + "\"";
+            const char *command = strComm.c_str();
+            system(command);
+            std::cout << "Done.\n";
+        }
+    }
 
     // Generate new inventory file
+    std::ofstream inventoryOutputFile{inventoryFilePathString};
+    if (inventoryOutputFile.is_open())
+    {
+        for (auto &entry : newInventoryState)
+        {
+            inventoryOutputFile << entry.date << ' ' << entry.path << '\n';
+        }
+        inventoryOutputFile.close();
+    }
 }
 
 int main(int argc, char** argv)
