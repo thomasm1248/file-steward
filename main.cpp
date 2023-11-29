@@ -10,6 +10,7 @@ namespace fs = std::filesystem;
 
 // Globals
 const int SECONDS_UNTIL_FILE_EXPIRATION = 60 * 60 * 24 * 30; // 30 days
+const int SECONDS_IN_A_DAY = 60 * 60 * 24;
 
 // Types for managing rules
 enum ruleType {tempFolder, archiveFolder};
@@ -32,11 +33,11 @@ void checkForExpiredFiles(fs::path path, int maxAge)
 {
     // Iterate through files/directories within the folder at path
     std::ranges::for_each( fs::directory_iterator{path},
-            [](const auto& subPath) {
+            [&maxAge](const auto& subPath) {
                 // Get seconds since last edit
                 std::chrono::duration<double> secondsSinceLastEdit = fs::file_time_type::clock::now() - fs::last_write_time(subPath);
                 // Delete if last modified a while ago
-                if (secondsSinceLastEdit.count() > SECONDS_UNTIL_FILE_EXPIRATION)
+                if (secondsSinceLastEdit.count() > SECONDS_IN_A_DAY * maxAge)
                 {
                     std::cout << subPath << " : Expired\n";
                     fs::remove_all(subPath);
