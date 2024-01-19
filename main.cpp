@@ -13,10 +13,11 @@ const int SECONDS_UNTIL_FILE_EXPIRATION = 60 * 60 * 24 * 30; // 30 days
 const int SECONDS_IN_A_DAY = 60 * 60 * 24;
 
 // Types for managing rules
-enum ruleType {tempFolder, archiveFolder};
+enum ruleType {tempFolder, archiveFolder, moveFiles};
 struct rule
 {
     std::string path;
+    std::string destPath;
     ruleType type;
     int param;
 };
@@ -168,6 +169,18 @@ void zipModifiedSubfolders(fs::path archiveRoot)
     }
 }
 
+void migrateFiles(fs::path inPath, fs::path outPath) {
+    // Iterate through files at inPath, and move them to outPath
+    std::ranges::for_each( fs::directory_iterator{inPath},
+            [&inPath, &outPath](const auto& subPath) {
+                // Move file to destination folder
+                // Get the filename of the file
+                fs::path filename = subPath.path().filename();
+                // Move the file
+                fs::rename(subPath.path(), outPath / filename);
+            } );
+}
+
 int main(int argc, char** argv)
 {
     // Try to get the rules file
@@ -201,7 +214,7 @@ int main(int argc, char** argv)
                     else
                     {
                         // Only tempFolder command takes a parameter
-                        if (command == "tempFolder")
+                        if (command == "tempFolder" || command == "moveFiles")
                             readingState = PARAM;
                         else
                             readingState = PATH;
@@ -230,6 +243,11 @@ int main(int argc, char** argv)
         {
             newRule.type = archiveFolder;
         }
+        else if (command == "moveFiles")
+        {
+            newRule.type = moveFiles;
+            newRule.destPath = param;
+        }
         else
         {
             std::cout << "Not a valid command: \"" << command << "\"\n";
@@ -249,6 +267,9 @@ int main(int argc, char** argv)
                 break;
             case archiveFolder:
                 zipModifiedSubfolders(rules.at(i).path);
+                break;
+            case moveFiles:
+                migrateFiles(rules.at(i).path, rules.at(i).destPath);
                 break;
         }
     }
