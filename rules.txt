@@ -1,2 +1,0 @@
-tempFolder 10 /home/thomasm1248/Temp
-archiveFolder /home/thomasm1248/Archive
